@@ -1,284 +1,84 @@
-const P = require("pino");
-const fs = require("fs");
-const { Sequelize } = require("sequelize");
+hereconst fs = require('fs');
+if (fs.existsSync('config.env')) require('dotenv').config({ path: './config.env' });
 
-function convertToBool(text, fault = "true", fault2 = "on") {
-  return text === fault || text === fault2;
+function convertToBool(text, fault = 'true') {
+    return text === fault ? true : false;
 }
-
-const isVPS = !(__dirname.startsWith("/rgnk") || __dirname.startsWith("/skl"));
-const isHeroku = __dirname.startsWith("/skl");
-const isKoyeb = __dirname.startsWith("/rgnk");
-const isRailway = __dirname.startsWith("/railway");
-
-const logger = P({ level: process.env.LOG_LEVEL || "silent" });
-
-const MAX_RECONNECT_ATTEMPTS = parseInt(
-  process.env.MAX_RECONNECT_ATTEMPTS || "5",
-  10
-);
-const VERSION = require("./package.json").version;
-const DATABASE_URL =
-  process.env.DATABASE_URL === undefined
-    ? "./bot.db"
-    : process.env.DATABASE_URL;
-const DEBUG =
-  process.env.DEBUG === undefined ? false : convertToBool(process.env.DEBUG);
-
-const sequelize =
-  DATABASE_URL === "./bot.db"
-    ? new Sequelize({
-        dialect: "sqlite",
-        storage: DATABASE_URL,
-        logging: DEBUG,
-        retry: {
-          match: [/SQLITE_BUSY/, /database is locked/, /EBUSY/],
-          max: 3,
-        },
-      })
-    : new Sequelize(DATABASE_URL, {
-        dialectOptions: { ssl: { require: true, rejectUnauthorized: false } },
-        logging: DEBUG,
-      });
-
-const SESSION_STRING = process.env.SESSION || process.env.SESSION_ID;
-
-const SESSION = SESSION_STRING
-  ? SESSION_STRING.split(",").map((s) => s.split("~")[1].trim())
-  : [];
-
-const settingsMenu = [
-  { title: "PM antispam block", env_var: "PM_ANTISPAM" },
-  { title: "Command auto reaction", env_var: "CMD_REACTION" },
-  { title: "Auto read all messages", env_var: "READ_MESSAGES" },
-  { title: "Auto read command messages", env_var: "READ_COMMAND" },
-  { title: "Auto read status updates", env_var: "AUTO_READ_STATUS" },
-  { title: "Admin sudo (group commands)", env_var: "ADMIN_ACCESS" },
-  { title: "With & without handler mode", env_var: "MULTI_HANDLERS" },
-  { title: "Auto reject calls", env_var: "REJECT_CALLS" },
-  { title: "Always online", env_var: "ALWAYS_ONLINE" },
-  { title: "PM Auto blocker", env_var: "PMB_VAR" },
-  { title: "Disable bot in PM", env_var: "DIS_PM" },
-  { title: "Disable bot startup message", env_var: "DISABLE_START_MESSAGE" },
-];
-
-const baseConfig = {
-  VERSION,
-  ALIVE:
-    process.env.ALIVE ||
-    "_I am alive! (use .setalive help for custom alive msg)_",
-  BLOCK_CHAT: process.env.BLOCK_CHAT || "",
-  PM_ANTISPAM: convertToBool(process.env.PM_ANTISPAM) || "",
-  ALWAYS_ONLINE: convertToBool(process.env.ALWAYS_ONLINE) || false,
-  MANGLISH_CHATBOT: convertToBool(process.env.MANGLISH_CHATBOT) || false,
-  ADMIN_ACCESS: convertToBool(process.env.ADMIN_ACCESS) || false,
-  PLATFORM: isHeroku
-    ? "Heroku"
-    : isRailway
-    ? "Railway"
-    : isKoyeb
-    ? "Koyeb"
-    : "Other server",
-  isHeroku,
-  isKoyeb,
-  isVPS,
-  isRailway,
-  AUTOMUTE_MSG:
-    process.env.AUTOMUTE_MSG || "_Group automuted!_\n_(edit AUTOMUTE_MSG)_",
-  ANTIWORD_WARN: process.env.ANTIWORD_WARN || "",
-  ANTI_SPAM: process.env.ANTI_SPAM || "919074309534-1632403322@g.us",
-  MULTI_HANDLERS: convertToBool(process.env.MULTI_HANDLERS) || false,
-  DISABLE_START_MESSAGE:
-    convertToBool(process.env.DISABLE_START_MESSAGE) || false,
-  NOLOG: process.env.NOLOG || false,
-  DISABLED_COMMANDS:
-    (process.env.DISABLED_COMMANDS
-      ? process.env.DISABLED_COMMANDS.split(",")
-      : undefined) || [],
-  ANTI_BOT: process.env.ANTI_BOT || "",
-  ANTISPAM_COUNT: process.env.ANTISPAM_COUNT || "6/10",
-  AUTOUNMUTE_MSG:
-    process.env.AUTOUNMUTE_MSG ||
-    "_Group auto unmuted!_\n_(edit AUTOUNMUTE_MSG)_",
-  AUTO_READ_STATUS: convertToBool(process.env.AUTO_READ_STATUS) || false,
-  READ_MESSAGES: convertToBool(process.env.READ_MESSAGES) || false,
-  PMB_VAR: convertToBool(process.env.PMB_VAR) || false,
-  DIS_PM: convertToBool(process.env.DIS_PM) || false,
-  REJECT_CALLS: convertToBool(process.env.REJECT_CALLS) || false,
-  ALLOWED_CALLS: process.env.ALLOWED_CALLS || "",
-  CALL_REJECT_MESSAGE: process.env.CALL_REJECT_MESSAGE || "",
-  PMB: process.env.PMB || "_Personal messages not allowed, BLOCKED!_",
-  READ_COMMAND: convertToBool(process.env.READ_COMMAND) || true,
-  IMGBB_KEY: [
-    "76a050f031972d9f27e329d767dd988f",
-    "deb80cd12ababea1c9b9a8ad6ce3fab2",
-    "78c84c62b32a88e86daf87dd509a657a",
-  ],
-  RG: process.env.RG || "919074309534-1632403322@g.us,120363116963909366@g.us",
-  BOT_INFO: process.env.BOT_INFO || "𝖱𝖺𝗀𝖺𝗇𝗈𝗋𝗄;𝖱𝗒𝗓𝖾𝗇;default",
-  RBG_KEY: process.env.RBG_KEY || "",
-  ALLOWED: process.env.ALLOWED || "91,94,2",
-  NOT_ALLOWED: process.env.NOT_ALLOWED || "852",
-  CHATBOT: process.env.CHATBOT || "off",
-  HANDLERS: process.env.HANDLERS || ".,",
-  STICKER_DATA: process.env.STICKER_DATA || "Raganork",
-  BOT_NAME: process.env.BOT_NAME || "Raganork",
-  AUDIO_DATA:
-    process.env.AUDIO_DATA === undefined || process.env.AUDIO_DATA === "private"
-      ? "ꪶ͢٭𝑺𝜣𝑼𝑹𝛢𝑽𝑲𝑳¹¹ꫂ;Raganork MD bot;https://i.imgur.com/P7ziVhr.jpeg"
-      : process.env.AUDIO_DATA,
-  TAKE_KEY: process.env.TAKE_KEY || "",
-  CMD_REACTION: convertToBool(process.env.CMD_REACTION) || false,
-  MODE: process.env.MODE || "private",
-  WARN: process.env.WARN || "4",
-  ANTILINK_WARN: process.env.ANTILINK_WARN || "",
-  ANTI_DELETE: convertToBool(process.env.ANTI_DELETE) || false,
-  SUDO: process.env.SUDO || "",
-  LANGUAGE: process.env.LANGUAGE || "english",
-  ACR_A: "ff489a0160188cf5f0750eaf486eee74",
-  ACR_S: "ytu3AdkCu7fkRVuENhXxs9jsOW4YJtDXimAWMpJp",
-  settingsMenu,
-
-  SESSION,
-  logger,
-  MAX_RECONNECT_ATTEMPTS,
-  sequelize,
-  DATABASE_URL,
-  DEBUG,
+module.exports = {
+SESSION_ID: process.env.SESSION_ID || "RGNK~A4P1nStC",  
+// add your Session Id 
+AUTO_STATUS_SEEN: process.env.AUTO_STATUS_SEEN || "true",
+// make true or false status auto seen
+AUTO_STATUS_REPLY: process.env.AUTO_STATUS_REPLY || "false",
+// make true if you want auto reply on status 
+AUTO_STATUS_REACT: process.env.AUTO_STATUS_REACT || "true",
+// make true if you want auto reply on status 
+AUTO_STATUS_MSG: process.env.AUTO_STATUS_MSG || "*SEEN YOUR STATUS JUST NOW SUMIT 👻*",
+// set the auto reply massage on status reply  
+WELCOME: process.env.WELCOME || "true",
+// true if want welcome msg in groups
+GOODBYE: process.env.GOODBYE || "true",
+// true if want goodbye msg in groups 
+ADMIN_EVENTS: process.env.ADMIN_ACTION || "true",
+// make true to know who dismiss or promoted a member in group
+ANTI_LINK: process.env.ANTI_LINK || "true",
+// make anti link true,false for groups
+ANTI_CALL: process.env.ANTI_CALL || "true",
+REJECT_MSG: process.env.REJECT_MSG || "*📞 ᴄαℓℓ ɴσт αℓℓσωє∂ ιɴ тнιѕ ɴᴜмвєʀ уσυ ∂σɴт нανє ᴘєʀмιѕѕισɴ 📵*",
+// make anti link true,false for groups 
+MENTION_REPLY: process.env.MENTION_REPLY || "true",
+// make true if want auto voice reply if someone menetion you 
+ALIVE_IMG: process.env.ALIVE_IMG || "https://qu.ax/zrqFX.jpg",
+// add custom menu image url
+PREFIX: process.env.PREFIX || "🌀", 
+// add your prifix for bot   
+BOT_NAME: process.env.BOT_NAME || "DERK-SOUMYA",
+// add bot namw here for menu
+STICKER_NAME: process.env.STICKER_NAME || "ALI-MD",    
+VPS: process.env.VPS || "",
+// type sticker pack name 
+CUSTOM_REACT: process.env.CUSTOM_REACT || "false",
+OWNER_REACT: process.env.OWNER_REACT || "false",
+// make this true for custum emoji react    
+CUSTOM_REACT_EMOJIS: process.env.CUSTOM_REACT_EMOJIS || "💝,💖,💗,❤️‍🩹,❤️,🧡,💛,💚,💙,💜,🤎,🖤,🤍",
+// chose custom react emojis by yourself 
+OWNER_NUMBER: process.env.OWNER_NUMBER || "91916378368",
+// add your bot owner number
+OWNER_NAME: process.env.OWNER_NAME || "DERK SOUMYA",
+// add bot owner name
+DESCRIPTION: process.env.DESCRIPTION || "© ᴘσωєʀє∂ ву 🅓︎🅔︎🅡︎🅚︎ 🆂︎🅾︎🆄︎🅼︎🆈︎🅰︎⎯꯭̽💀",
+// add alive msg here 
+READ_MESSAGE: process.env.READ_MESSAGE || "false",
+// Turn true or false for automatic read msgs
+AUTO_REACT: process.env.AUTO_REACT || "false",
+// make this true or false for auto react on all msgs
+ANTI_BAD_WORD: process.env.ANTI_BAD_WORD || "false",
+// false or true for anti bad words 
+ANTI_BOT: process.env.ANTI_BOT || "true",
+MODE: process.env.MODE || "private",
+// make bot public-private-inbox-group 
+ANTIVIEW_ONCE: process.env.ANTIVIEW_ONCE || "on",
+AUTO_VOICE: process.env.AUTO_VOICE || "false",
+// make true for send automatic voices
+AUTO_STICKER: process.env.AUTO_STICKER || "false",
+// make true for automatic stickers 
+AUTO_REPLY: process.env.AUTO_REPLY || "true",
+// make true or false automatic text reply 
+ALWAYS_ONLINE: process.env.ALWAYS_ONLINE || "false",
+// maks true for always online 
+PUBLIC_MODE: process.env.PUBLIC_MODE || "false",
+// make false if want private mod
+AUTO_TYPING: process.env.AUTO_TYPING || "false",
+// true for automatic show typing   
+READ_CMD: process.env.READ_CMD || "false",
+// true if want mark commands as read 
+DEV: process.env.DEV || "918250547820",
+//replace with your whatsapp number        
+ANTI_VV: process.env.ANTI_VV || "true",
+// true for anti once view 
+ANTI_DELETE: process.env.ANTI_DELETE || "false",
+ANTI_DEL_PATH: process.env.ANTI_DEL_PATH || "inbox", 
+// change it to 'same' if you want to resend deleted message in same chat 
+AUTO_RECORDING: process.env.AUTO_RECORDING || "false"
+// make it true for auto recoding 
 };
-
-const dynamicValues = new Map();
-
-const config = new Proxy(baseConfig, {
-  get(target, prop) {
-    const key = typeof prop === "symbol" ? prop.toString() : prop;
-
-    if (key === "toJSON" || key === "valueOf") {
-      return () => ({ ...target, ...Object.fromEntries(dynamicValues) });
-    }
-
-    if (key === "inspect" || key === Symbol.for("nodejs.util.inspect.custom")) {
-      return () => ({ ...target, ...Object.fromEntries(dynamicValues) });
-    }
-
-    if (dynamicValues.has(key)) {
-      return dynamicValues.get(key);
-    }
-
-    if (key in target) {
-      return target[key];
-    }
-
-    if (typeof key === "string" && process.env[key] !== undefined) {
-      return process.env[key];
-    }
-
-    return undefined;
-  },
-
-  set(target, prop, value) {
-    const key = typeof prop === "symbol" ? prop.toString() : prop;
-
-    dynamicValues.set(key, value);
-    return true;
-  },
-
-  has(target, prop) {
-    const key = typeof prop === "symbol" ? prop.toString() : prop;
-    return (
-      dynamicValues.has(key) ||
-      key in target ||
-      (typeof key === "string" && key in process.env)
-    );
-  },
-
-  ownKeys(target) {
-    const baseKeys = Object.keys(target);
-    const dynamicKeys = Array.from(dynamicValues.keys()).filter(
-      (k) => typeof k === "string"
-    );
-    return [...new Set([...baseKeys, ...dynamicKeys])];
-  },
-
-  getOwnPropertyDescriptor(target, prop) {
-    const key = typeof prop === "symbol" ? prop.toString() : prop;
-
-    if (dynamicValues.has(key) || key in target) {
-      return {
-        enumerable: true,
-        configurable: true,
-        value: this.get(target, prop),
-      };
-    }
-    return undefined;
-  },
-});
-
-Object.defineProperty(config, "loadFromDB", {
-  value: function (dbValues = {}) {
-    let loadedCount = 0;
-    const booleanKeys = [
-      ...settingsMenu.map((item) => item.env_var),
-      "MANGLISH_CHATBOT",
-    ];
-    for (const [key, value] of Object.entries(dbValues)) {
-      if (value !== undefined && value !== null) {
-        if (booleanKeys.includes(key)) {
-          this[key] = convertToBool(value);
-        } else {
-          this[key] = value;
-        }
-        loadedCount++;
-      }
-    }
-
-    console.log(`- Loaded ${loadedCount} vars`);
-    return this;
-  },
-  writable: false,
-  enumerable: false,
-});
-
-Object.defineProperty(config, "getDynamicKeys", {
-  value: function () {
-    return Array.from(dynamicValues.keys());
-  },
-  writable: false,
-  enumerable: false,
-});
-
-Object.defineProperty(config, "isDynamic", {
-  value: function (key) {
-    return dynamicValues.has(key);
-  },
-  writable: false,
-  enumerable: false,
-});
-
-Object.defineProperty(config, "getSource", {
-  value: function (key) {
-    if (dynamicValues.has(key)) return "database";
-    if (key in baseConfig) return "config";
-    if (typeof key === "string" && process.env[key] !== undefined)
-      return "environment";
-    return "not_found";
-  },
-  writable: false,
-  enumerable: false,
-});
-
-Object.defineProperty(config, "debug", {
-  value: function () {
-    const result = {
-      static: Object.keys(baseConfig),
-      dynamic: Array.from(dynamicValues.keys()),
-      values: { ...baseConfig, ...Object.fromEntries(dynamicValues) },
-    };
-    console.log("Config Debug Info:", result);
-    return result;
-  },
-  writable: false,
-  enumerable: false,
-});
-
-module.exports = config;
